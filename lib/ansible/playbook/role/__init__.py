@@ -363,6 +363,10 @@ class Role(Base, Conditional, Taggable, CollectionSearch, Delegatable):
                 'module': 'ansible.builtin.validate_argument_spec',
                 # Pass only the 'options' portion of the arg spec to the module.
                 'argument_spec': argument_spec.get('options', {}),
+                'mutually_exclusive': argument_spec.get('mutually_exclusive', []),
+                'required_together': argument_spec.get('required_together', []),
+                'required_one_of': argument_spec.get('required_one_of', []),
+                'required_if': argument_spec.get('required_if', []),
                 'provided_arguments': self._role_params,
                 'validate_args_context': {
                     'type': 'role',

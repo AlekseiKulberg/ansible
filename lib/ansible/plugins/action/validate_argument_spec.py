@@ -41,6 +41,15 @@ class ActionModule(ActionBase):
         The `validate_argument_spec` module expects to receive the arguments:
             - argument_spec: A dict whose keys are the valid argument names, and
                   whose values are dicts of the argument attributes (type, etc).
+            - mutually_exclusive: A list of list of strings. Every list of strings
+                  is a list of option names which are mutually exclusive
+            - required_together: A list of list of strings. Every list of strings
+                  is a list of option names which are must be specified together.
+            - required_one_of: A list of list of strings. Every list of strings
+                  is a list of option names from which at least one must be specified
+            - required_if: A list of dict of `{ parameter, value, [parameters], at_least_one_met}` where
+                  one of `[parameters]` is required if `parameter == value`. If the`at_least_one_met` is false,
+                  all options specified in parameters must be met. Otherwise, one option from the parameters is enough
             - provided_arguments: A dict whose keys are the argument names, and
                   whose values are the argument value.
 
@@ -66,22 +75,45 @@ class ActionModule(ActionBase):
         # data dict (for the proper entry point for a role).
         argument_spec_data = self._task.args.get('argument_spec')
 
+        # Get the task var called mutually_exclusive. This will contain the mutually exclusive
+        # parameters list (for the proper entry point for a role).
+        mutually_exclusive_data = self._task.args.get('mutually_exclusive', [])
+
+        # Get the task var called required_together. This will contain the required together
+        # parameters list (for the proper entry point for a role).
+        required_together_data = self._task.args.get('required_together', [])
+
+        # Get the task var called required_one_of. This will contain the parameters
+        # list which at least one must be specified (for the proper entry point for a role).
+        required_one_of_data = self._task.args.get('required_one_of', [])
+
+        required_if_data = self._task.args.get('required_if_data', [])
+
         # the values that were passed in and will be checked against argument_spec
         provided_arguments = self._task.args.get('provided_arguments', {})
 
         if not isinstance(argument_spec_data, dict):
             raise AnsibleError('Incorrect type for argument_spec, expected dict and got %s' % type(argument_spec_data))
 
+        if not isinstance(mutually_exclusive_data, list):
+            raise AnsibleError('Incorrect type for mutually_exclusive, expected list and got %s' % type(mutually_exclusive_data))
+
+        if not isinstance(required_if_data, list):
+            raise AnsibleError('Incorrect type for required_if_data, expected list and got %s' % type(required_if_data))
+
         if not isinstance(provided_arguments, dict):
             raise AnsibleError('Incorrect type for provided_arguments, expected dict and got %s' % type(provided_arguments))
 
         args_from_vars = self.get_args_from_task_vars(argument_spec_data, task_vars)
-        validator = ArgumentSpecValidator(argument_spec_data)
+        validator = ArgumentSpecValidator(argument_spec=argument_spec_data, mutually_exclusive=mutually_exclusive_data,
+                                          required_together=required_together_data, required_one_of=required_one_of_data,
+                                          required_if=required_if_data)
         validation_result = validator.validate(combine_vars(args_from_vars, provided_arguments), validate_role_argument_spec=True)
 
         if validation_result.error_messages:
             result['failed'] = True
             result['msg'] = 'Validation of arguments failed:\n%s' % '\n'.join(validation_result.error_messages)
+            result['argument_required_if'] = required_if_data
             result['argument_spec_data'] = argument_spec_data
             result['argument_errors'] = validation_result.error_messages
             return result
