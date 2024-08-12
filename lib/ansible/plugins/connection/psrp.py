@@ -13,7 +13,7 @@ description:
   underlying transport but instead runs in a PowerShell interpreter.
 version_added: "2.7"
 requirements:
-- pypsrp>=0.4.0 (Python library)
+- pypsrp>=0.4.0, <1.0.0 (Python library)
 extends_documentation_fragment:
     - connection_pipelining
 options:
@@ -346,7 +346,7 @@ class Connection(ConnectionBase):
     has_pipelining = True
     allow_extras = True
 
-    # Satifies mypy as this connection only ever runs with this plugin
+    # Satisfies mypy as this connection only ever runs with this plugin
     _shell: PowerShellPlugin
 
     def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:

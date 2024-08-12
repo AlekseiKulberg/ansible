@@ -11,9 +11,9 @@ import sys
 
 # Used for determining if the system is running a new enough python version
 # and should only restrict on our documented minimum versions
-if sys.version_info < (3, 10):
+if sys.version_info < (3, 11):
     raise SystemExit(
-        'ERROR: Ansible requires Python 3.10 or newer on the controller. '
+        'ERROR: Ansible requires Python 3.11 or newer on the controller. '
         'Current version: %s' % ''.join(sys.version.splitlines())
     )
 
@@ -424,6 +424,10 @@ class CLI(ABC):
                 for tag in tag_set.split(u','):
                     skip_tags.add(tag.strip())
             options.skip_tags = list(skip_tags)
+
+        # Make sure path argument doesn't have a backslash
+        if hasattr(options, 'action') and options.action in ['install', 'download'] and hasattr(options, 'args'):
+            options.args = [path.rstrip("/") for path in options.args]
 
         # process inventory options except for CLIs that require their own processing
         if hasattr(options, 'inventory') and not self.SKIP_INVENTORY_DEFAULTS:

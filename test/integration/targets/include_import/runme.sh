@@ -68,7 +68,7 @@ ANSIBLE_STRATEGY='free' ansible-playbook test_copious_include_tasks.yml  -i inve
 ANSIBLE_STRATEGY='free' ansible-playbook test_copious_include_tasks_fqcn.yml  -i inventory "$@"
 rm -f tasks/hello/*.yml
 
-# Inlcuded tasks should inherit attrs from non-dynamic blocks in parent chain
+# Included tasks should inherit attrs from non-dynamic blocks in parent chain
 # https://github.com/ansible/ansible/pull/38827
 ANSIBLE_STRATEGY='linear' ansible-playbook test_grandparent_inheritance.yml -i inventory "$@"
 ANSIBLE_STRATEGY='linear' ansible-playbook test_grandparent_inheritance_fqcn.yml -i inventory "$@"
@@ -120,6 +120,10 @@ ansible-playbook valid_include_keywords/playbook.yml "$@"
 # https://github.com/ansible/ansible/issues/64902
 ansible-playbook tasks/test_allow_single_role_dup.yml 2>&1 | tee test_allow_single_role_dup.out
 test "$(grep -c 'ok=3' test_allow_single_role_dup.out)" = 1
+
+# Test allow_duplicate with include_role and import_role
+test "$(ansible-playbook tasks/test_dynamic_allow_dup.yml --tags include | grep -c 'Tasks file inside role')" = 2
+test "$(ansible-playbook tasks/test_dynamic_allow_dup.yml --tags import | grep -c 'Tasks file inside role')" = 2
 
 # test templating public, allow_duplicates, and rolespec_validate
 ansible-playbook tasks/test_templating_IncludeRole_FA.yml 2>&1 | tee IncludeRole_FA_template.out

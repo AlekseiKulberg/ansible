@@ -28,11 +28,10 @@ from ansible.utils.fqcn import add_internal_fqcns
 from ansible.utils.sentinel import Sentinel
 
 
-# For filtering out modules correctly below
-FREEFORM_ACTIONS = frozenset(C.MODULE_REQUIRE_ARGS)
-
-RAW_PARAM_MODULES = FREEFORM_ACTIONS.union(add_internal_fqcns((
-    'include',
+# modules formated for user msg
+FREEFORM_ACTIONS_SIMPLE = set(C.MODULE_REQUIRE_ARGS_SIMPLE)
+FREEFORM_ACTIONS = frozenset(add_internal_fqcns(FREEFORM_ACTIONS_SIMPLE))
+RAW_PARAM_MODULES = FREEFORM_ACTIONS_SIMPLE.union(set([
     'include_vars',
     'include_tasks',
     'include_role',
@@ -42,8 +41,9 @@ RAW_PARAM_MODULES = FREEFORM_ACTIONS.union(add_internal_fqcns((
     'group_by',
     'set_fact',
     'meta',
-)))
-
+]))
+# For filtering out modules correctly below, use all permutations
+RAW_PARAM_MODULES_MATCH = add_internal_fqcns(RAW_PARAM_MODULES) + C.WIN_MOVED
 BUILTIN_TASKS = frozenset(add_internal_fqcns((
     'meta',
     'include_tasks',
@@ -51,6 +51,17 @@ BUILTIN_TASKS = frozenset(add_internal_fqcns((
     'import_tasks',
     'import_role'
 )))
+
+
+def _get_action_context(action_or_module, collection_list):
+    module_context = module_loader.find_plugin_with_context(action_or_module, collection_list=collection_list)
+    if module_context and module_context.resolved and module_context.action_plugin:
+        action_or_module = module_context.action_plugin
+
+    context = action_loader.find_plugin_with_context(action_or_module, collection_list=collection_list)
+    if not context or not context.resolved:
+        context = module_context
+    return context
 
 
 class ModuleArgsParser:
@@ -179,7 +190,11 @@ class ModuleArgsParser:
             for arg in args:
                 arg = to_text(arg)
                 if arg.startswith('_ansible_'):
-                    raise AnsibleError("invalid parameter specified for action '%s': '%s'" % (action, arg))
+                    err_msg = (
+                        f"Invalid parameter specified beginning with keyword '_ansible_' for action '{action !s}': '{arg !s}'. "
+                        "The prefix '_ansible_' is reserved for internal use only."
+                    )
+                    raise AnsibleError(err_msg)
 
         # finally, update the args we're going to return with the ones
         # which were normalized above
@@ -287,6 +302,11 @@ class ModuleArgsParser:
             delegate_to = 'localhost'
             action, args = self._normalize_parameters(thing, action=action, additional_args=additional_args)
 
+        if action is not None and not skip_action_validation:
+            context = _get_action_context(action, self._collection_list)
+            if context is not None and context.resolved:
+                self.resolved_action = context.resolved_fqcn
+
         # module: <stuff> is the more new-style invocation
 
         # filter out task attributes so we're only querying unrecognized keys as actions/modules
@@ -302,9 +322,7 @@ class ModuleArgsParser:
                 is_action_candidate = True
             else:
                 try:
-                    context = action_loader.find_plugin_with_context(item, collection_list=self._collection_list)
-                    if not context.resolved:
-                        context = module_loader.find_plugin_with_context(item, collection_list=self._collection_list)
+                    context = _get_action_context(item, self._collection_list)
                 except AnsibleError as e:
                     if e.obj is None:
                         e.obj = self._task_ds
@@ -334,7 +352,7 @@ class ModuleArgsParser:
             else:
                 raise AnsibleParserError("no module/action detected in task.",
                                          obj=self._task_ds)
-        elif args.get('_raw_params', '') != '' and action not in RAW_PARAM_MODULES:
+        elif args.get('_raw_params', '') != '' and action not in RAW_PARAM_MODULES_MATCH:
             templar = Templar(loader=None)
             raw_params = args.pop('_raw_params')
             if templar.is_template(raw_params):

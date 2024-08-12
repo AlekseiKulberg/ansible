@@ -549,20 +549,13 @@ class StrategyBase:
                 yield handler
                 break
 
-        templar.available_variables = {}
-        seen = []
+        seen = set()
         for handler in handlers:
-            if listeners := handler.listen:
-                if notification in handler.get_validated_value(
-                    'listen',
-                    handler.fattributes.get('listen'),
-                    listeners,
-                    templar,
-                ):
-                    if handler.name and handler.name in seen:
-                        continue
-                    seen.append(handler.name)
-                    yield handler
+            if notification in handler.listen:
+                if handler.name and handler.name in seen:
+                    continue
+                seen.add(handler.name)
+                yield handler
 
     @debug_closure
     def _process_pending_results(self, iterator, one_pass=False, max_passes=None):
@@ -653,7 +646,7 @@ class StrategyBase:
                 for result_item in result_items:
                     if '_ansible_notify' in result_item and task_result.is_changed():
                         # only ensure that notified handlers exist, if so save the notifications for when
-                        # handlers are actually flushed so the last defined handlers are exexcuted,
+                        # handlers are actually flushed so the last defined handlers are executed,
                         # otherwise depending on the setting either error or warn
                         host_state = iterator.get_state_for_host(original_host.name)
                         for notification in result_item['_ansible_notify']:
@@ -1004,7 +997,7 @@ class StrategyBase:
             if _evaluate_conditional(target_host):
                 for host in self._inventory.get_hosts(iterator._play.hosts):
                     if host.name not in self._tqm._unreachable_hosts:
-                        iterator.set_run_state_for_host(host.name, IteratingStates.COMPLETE)
+                        iterator.end_host(host.name)
                 msg = "ending batch"
             else:
                 skipped = True
@@ -1013,7 +1006,7 @@ class StrategyBase:
             if _evaluate_conditional(target_host):
                 for host in self._inventory.get_hosts(iterator._play.hosts):
                     if host.name not in self._tqm._unreachable_hosts:
-                        iterator.set_run_state_for_host(host.name, IteratingStates.COMPLETE)
+                        iterator.end_host(host.name)
                         # end_play is used in PlaybookExecutor/TQM to indicate that
                         # the whole play is supposed to be ended as opposed to just a batch
                         iterator.end_play = True
@@ -1023,8 +1016,7 @@ class StrategyBase:
                 skip_reason += ', continuing play'
         elif meta_action == 'end_host':
             if _evaluate_conditional(target_host):
-                iterator.set_run_state_for_host(target_host.name, IteratingStates.COMPLETE)
-                iterator._play._removed_hosts.append(target_host.name)
+                iterator.end_host(target_host.name)
                 msg = "ending play for %s" % target_host.name
             else:
                 skipped = True
